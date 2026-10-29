@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WickShield — Cross-Exchange Wick Proof</title>
+<meta name="description" content="Was your liquidation a real market move, or a wick on one exchange only? GenLayer validators compare 1-minute candles across Binance, OKX, MEXC, KuCoin and Coinbase.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,800&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f2ede2;
+    --paper-2: #e8e1d2;
+    --ink: #1c1a16;
+    --ink-soft: #5d574c;
+    --rule: #cfc6b3;
+    --red: #c2321b;
+    --green: #2f6b3a;
+    --amber: #a8700f;
+    --blue: #2b4f7a;
+    --grid: rgba(28, 26, 22, .06);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background:
+      linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 100% 28px,
+      var(--paper);
+    color: var(--ink);
+    font: 15px/1.6 "IBM Plex Mono", ui-monospace, monospace;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--blue); }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+
+  /* ---------- header ---------- */
+  header { border-bottom: 2px solid var(--ink); padding: 18px 0 14px; }
+  .top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .brand { font: 800 26px/1 "Fraunces", serif; letter-spacing: -.5px; }
+  .brand span { color: var(--red); }
+  .meta { font-size: 12px; color: var(--ink-soft); }
+  .meta b { color: var(--ink); }
+  .wallet-btn {
+    font: 500 12px "IBM Plex Mono", monospace; margin-left: 10px; padding: 5px 10px; cursor: pointer;
+    border: 1.5px solid var(--ink); background: transparent; color: var(--ink);
+  }
+  .wallet-btn.on { background: var(--ink); color: var(--paper); }
+  .warn { grid-column: 1 / -1; border: 2px solid var(--amber); background: #fbf3df; padding: 10px 12px; font-size: 13px; display: none; }
+  .warn.show { display: block; }
+
+  .hero { padding: 48px 0 28px; display: grid; grid-template-columns: 1.3fr 1fr; gap: 40px; align-items: end; }
+  .hero h1 { font: 800 clamp(34px, 6vw, 60px)/1.02 "Fraunces", serif; margin: 0 0 18px; letter-spacing: -1.5px; }
+  .hero h1 em { font-style: normal; color: var(--red); }
+  .hero p { margin: 0; color: var(--ink-soft); max-width: 46ch; }
+  .exhibit-tag {
+    border: 2px solid var(--ink); padding: 14px 16px; background: var(--paper);
+    box-shadow: 6px 6px 0 var(--ink); font-size: 13px;
+  }
+  .exhibit-tag div { display: flex; justify-content: space-between; border-bottom: 1px dashed var(--rule); padding: 4px 0; }
+  .exhibit-tag div:last-child { border: 0; }
+
+  /* ---------- sections ---------- */
+  section { padding: 34px 0; border-top: 1px solid var(--rule); }
+  .label { font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: var(--red); margin: 0 0 6px; }
+  h2 { font: 800 30px/1.1 "Fraunces", serif; margin: 0 0 20px; letter-spacing: -.5px; }
+
+  /* ---------- form ---------- */
+  form { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+  .f { display: flex; flex-direction: column; gap: 4px; }
+  .f.w2 { grid-column: span 2; } .f.w3 { grid-column: span 3; }
+  .f label { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ink-soft); }
+  input, select {
+    font: inherit; color: var(--ink); background: #fbf8f1;
+    border: 1.5px solid var(--ink); border-radius: 0; padding: 10px 10px; width: 100%;
+  }
+  input:focus, select:focus { outline: 3px solid rgba(194, 50, 27, .25); }
+  .seg { display: flex; border: 1.5px solid var(--ink); }
+  .seg button { flex: 1; font: inherit; padding: 10px; border: 0; background: #fbf8f1; cursor: pointer; }
+  .seg button + button { border-left: 1.5px solid var(--ink); }
+  .seg button.on { background: var(--ink); color: var(--paper); }
+  .submit {
+    grid-column: span 6; font: 700 15px "IBM Plex Mono", monospace; letter-spacing: 1px;
+    background: var(--red); color: #fff; border: 2px solid var(--ink); padding: 14px;
+    cursor: pointer; box-shadow: 4px 4px 0 var(--ink); text-transform: uppercase;
+  }
+  .submit:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--ink); }
+  .submit:disabled { opacity: .55; cursor: wait; }
+  .hint { grid-column: span 6; font-size: 12px; color: var(--ink-soft); margin: 0; }
+
+  .log { margin-top: 16px; font-size: 13px; border-left: 3px solid var(--ink); padding: 6px 12px; background: var(--paper-2); display: none; }
+  .log.show { display: block; }
+  .log .err { color: var(--red); }
+
+  /* ---------- case file ---------- */
+  .case { position: relative; border: 2px solid var(--ink); background: #fbf8f1; padding: 22px; margin-top: 22px; }
+  .case-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-bottom: 2px solid var(--ink); padding-bottom: 12px; margin-bottom: 14px; }
+  .case-head h3 { font: 800 22px/1.1 "Fraunces", serif; margin: 0; }
+  .case-head .sub { font-size: 12px; color: var(--ink-soft); }
+  .demo-ribbon { display: inline-block; font-size: 11px; letter-spacing: 1.5px; border: 1.5px dashed var(--amber); color: var(--amber); padding: 1px 8px; margin-left: 6px; vertical-align: middle; }
+
+  .stamp {
+    position: absolute; right: 22px; top: 96px; transform: rotate(-9deg);
+    font: 800 20px/1 "IBM Plex Mono", monospace; letter-spacing: 2px; padding: 10px 14px;
+    border: 4px double currentColor; border-radius: 4px; opacity: .88; background: rgba(251, 248, 241, .7);
+    mix-blend-mode: multiply; pointer-events: none;
+  }
+  .stamp.ABNORMAL_WICK { color: var(--red); }
+  .stamp.NORMAL_MOVE { color: var(--green); }
+  .stamp.NOT_REACHED { color: var(--blue); }
+  .stamp.NOT_ENOUGH_DATA { color: var(--amber); }
+
+  .facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px 18px; font-size: 13px; margin-bottom: 18px; max-width: 70%; }
+  .facts dt { color: var(--ink-soft); font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; }
+  .facts dd { margin: 0; font-weight: 700; }
+
+  /* the tape: one row per exchange, price on x axis */
+  .tape-wrap { overflow-x: auto; }
+  .tape { width: 100%; min-width: 620px; height: auto; display: block; border-top: 1px dashed var(--rule); padding-top: 6px; }
+  .verdict-text { margin: 14px 0 0; font-size: 14px; }
+  .verdict-text b { background: var(--paper-2); padding: 0 4px; }
+
+  /* ---------- archive + index ---------- */
+  .archive { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .card {
+    border: 1.5px solid var(--ink); background: #fbf8f1; padding: 14px; cursor: pointer; text-align: left;
+    font: inherit; color: inherit; transition: transform .12s, box-shadow .12s;
+  }
+  .card:hover { transform: translate(-2px, -2px); box-shadow: 4px 4px 0 var(--ink); }
+  .card .r { font-weight: 700; margin-top: 6px; }
+  .card .r.ABNORMAL_WICK { color: var(--red); } .card .r.NORMAL_MOVE { color: var(--green); }
+  .card .r.NOT_REACHED { color: var(--blue); } .card .r.NOT_ENOUGH_DATA { color: var(--amber); }
+  .card small { color: var(--ink-soft); }
+
+  table { width: 100%; min-width: 560px; border-collapse: collapse; font-size: 14px; background: #fbf8f1; border: 2px solid var(--ink); }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--rule); }
+  th { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; background: var(--ink); color: var(--paper); }
+  td.tally { letter-spacing: 2px; color: var(--red); font-weight: 700; }
+  .idx-note { font-size: 12px; color: var(--ink-soft); margin-top: 8px; }
+  .lookup { display: flex; gap: 8px; margin-top: 14px; max-width: 360px; }
+  .lookup button { font: inherit; border: 1.5px solid var(--ink); background: var(--ink); color: var(--paper); padding: 0 14px; cursor: pointer; }
+
+  .how { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border: 2px solid var(--ink); }
+  .how div { padding: 16px; border-right: 1px solid var(--rule); background: #fbf8f1; }
+  .how div:last-child { border: 0; }
+  .how b { display: block; font: 800 28px/1 "Fraunces", serif; color: var(--red); margin-bottom: 8px; }
+  .how p { margin: 0; font-size: 13px; }
+
+  footer { border-top: 2px solid var(--ink); padding: 20px 0 40px; font-size: 12px; color: var(--ink-soft); }
+
+  @media (max-width: 760px) {
+    .hero { grid-template-columns: 1fr; padding-top: 30px; gap: 24px; }
+    form { grid-template-columns: repeat(2, 1fr); }
+    .f.w2, .f.w3 { grid-column: span 2; }
+    .submit, .hint { grid-column: span 2; }
+    .facts { grid-template-columns: repeat(2, 1fr); max-width: 100%; }
+    .stamp { position: static; display: inline-block; margin: 0 0 14px; font-size: 16px; }
+    .archive, .how { grid-template-columns: 1fr; }
+    .how div { border-right: 0; border-bottom: 1px solid var(--rule); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap top">
+    <div class="brand">Wick<span>Shield</span></div>
+    <div class="meta">GenLayer Intelligent Contract · <b id="netState">connecting…</b>
+      <button type="button" id="walletBtn" class="wallet-btn">Connect wallet</button></div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <div class="hero">
+    <div>
+      <h1>Was it the market,<br>or just <em>your exchange?</em></h1>
+      <p>You got liquidated by one sharp wick. Did the price really go there, or only on that one exchange? WickShield asks GenLayer validators to read the same minute on five exchanges and write the answer on-chain, where nobody can delete it.</p>
+    </div>
+    <div class="exhibit-tag" aria-label="Contract details">
+      <div><span>Contract</span><span id="addrShort">0x11b8…054b</span></div>
+      <div><span>Network</span><span>GenLayer Studio</span></div>
+      <div><span>Sources</span><span>5 exchanges</span></div>
+      <div><span>Cases filed</span><span id="totalCases">—</span></div>
+    </div>
+  </div>
+
+  <!-- ===== file a case ===== -->
+  <section id="file">
+    <p class="label">Step 1 · File a case</p>
+    <h2>Describe your liquidation</h2>
+    <form id="caseForm" autocomplete="off">
+      <div class="f w2">
+        <label for="ex">Exchange</label>
+        <select id="ex">
+          <option value="binance">Binance Futures</option>
+          <option value="okx">OKX Swap</option>
+          <option value="mexc">MEXC Futures</option>
+          <option value="kucoin">KuCoin Futures</option>
+        </select>
+      </div>
+      <div class="f w2">
+        <label for="coin">Coin</label>
+        <input id="coin" value="BTC" placeholder="BTC, ETH, SOL…" maxlength="15" required>
+      </div>
+      <div class="f w2">
+        <label>Position</label>
+        <div class="seg" id="sideSeg">
+          <button type="button" class="on" data-v="LONG">LONG</button>
+          <button type="button" data-v="SHORT">SHORT</button>
+        </div>
+      </div>
+      <div class="f w3">
+        <label for="when">Liquidation time (your local time)</label>
+        <input id="when" type="datetime-local" required>
+      </div>
+      <div class="f w3">
+        <label for="price">Liquidation price (USDT)</label>
+        <input id="price" type="number" step="any" min="0" placeholder="e.g. 80810" required>
+      </div>
+      <div class="warn" id="warn" role="alert"></div>
+      <button class="submit" id="go" type="submit">Send to validators →</button>
+      <p class="hint">Validators check one minute before and after your time, so a small time difference is fine. Takes 1–3 minutes.
+        <span id="who">Sending with an instant in-browser account (no wallet needed). Connect a wallet to file under your own address.</span></p>
+    </form>
+    <div class="log" id="log"></div>
+    <div id="liveCase"></div>
+  </section>
+
+  <!-- ===== archive ===== -->
+  <section id="archive">
+    <p class="label">Evidence archive</p>
+    <h2>Recorded cases</h2>
+    <div class="archive" id="archiveCards"></div>
+    <div class="lookup">
+      <input id="lookupId" type="number" min="0" placeholder="Case #" aria-label="Case number">
+      <button id="lookupBtn" type="button">Open</button>
+    </div>
+    <div id="archiveCase"></div>
+  </section>
+
+  <!-- ===== index ===== -->
+  <section id="index">
+    <p class="label">Wick Index</p>
+    <h2>Which exchange wicks alone?</h2>
+    <div style="overflow-x:auto"><table>
+      <thead><tr><th>Exchange</th><th>Cases</th><th>Abnormal</th><th>Normal</th><th>Not reached</th><th>Abnormal rate</th></tr></thead>
+      <tbody id="idxBody"><tr><td colspan="6">Loading from contract…</td></tr></tbody>
+    </table></div>
+    <p class="idx-note">Live cases only. DEMO cases are never counted.</p>
+  </section>
+
+  <!-- ===== how ===== -->
+  <section id="how">
+    <p class="label">How the verdict is made</p>
+    <h2>Four steps, no single judge</h2>
+    <div class="how">
+      <div><b>1</b><p>You file the exchange, coin, minute and liquidation price.</p></div>
+      <div><b>2</b><p>Every validator reads the 1-minute candles (±1 min) from Binance, OKX, MEXC, KuCoin and Coinbase, plus the mark price on Binance and OKX.</p></div>
+      <div><b>3</b><p>Past candles never change, so validators must agree on the exact numbers (<code>strict_eq</code>).</p></div>
+      <div><b>4</b><p>Plain code decides. ABNORMAL_WICK needs: price reached on your exchange, no other exchange reached it, and a gap of 0.5% or more.</p></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    WickShield records evidence. It does not move money and it is not financial or legal advice.
+    Contract: <a id="explorerLink" target="_blank" rel="noopener">explorer</a> ·
+    <a href="https://github.com/gurusankar55/wickshield" target="_blank" rel="noopener">source on GitHub</a>
+  </div>
+</footer>
+
+<script type="module">
+const CONTRACT = "0x11b81A0409aa79F8b1Aa2078Fc5328db6171054b";
+const RPC = "https://studio.genlayer.com/api";
+const EXCHANGES = ["binance", "okx", "mexc", "kucoin", "coinbase"];
+const NAMES = { binance: "Binance", okx: "OKX", mexc: "MEXC", kucoin: "KuCoin", coinbase: "Coinbase" };
+
+// Real results recorded on the contract above (cases 0, 1, 2). Shown even if the RPC is down.
+const ARCHIVE = [
+  {"id":0,"mode":"LIVE","exchange":"binance","coin":"BTC","time_utc":"2026-10-28T00:00:00Z","side":"LONG","liquidation_price":80810,"result":"NORMAL_MOVE","gap_percent":-0.09,"mark_price_reached":true,"mark_price":{"high":80868.51978261,"low":80802.13134783},"prices":{"binance":{"high":80868.5,"low":80800},"okx":{"high":80881.4,"low":80813.7},"mexc":{"high":80868.5,"low":80800},"kucoin":{"high":80871.3,"low":80807.8},"coinbase":{"high":80799.52,"low":80727.2}}},
+  {"id":1,"mode":"DEMO","exchange":"binance","coin":"SAMPLE","time_utc":"","side":"LONG","liquidation_price":3400,"result":"ABNORMAL_WICK","gap_percent":3.736,"mark_price_reached":null,"mark_price":null,"prices":{"binance":{"high":3500,"low":3350},"okx":{"high":3502,"low":3481},"mexc":{"high":3499,"low":3480},"kucoin":{"high":3501,"low":3482}}},
+  {"id":2,"mode":"LIVE","exchange":"binance","coin":"BTC","time_utc":"2026-10-28T00:00:00Z","side":"LONG","liquidation_price":79000,"result":"NOT_REACHED","gap_percent":-0.09,"mark_price_reached":false,"mark_price":{"high":80868.51978261,"low":80802.13134783},"prices":{"binance":{"high":80868.5,"low":80800},"okx":{"high":80881.4,"low":80813.7},"mexc":{"high":80868.5,"low":80800},"kucoin":{"high":80871.3,"low":80807.8},"coinbase":{"high":80799.52,"low":80727.2}}}
+];
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = (n) => Number(n).toLocaleString("en-US", { maximumFractionDigits: 8 });
+
+$("explorerLink").href = "https://explorer-studio.genlayer.com/address/" + CONTRACT;
+
+// ---------- case file renderer ----------
+const LABEL = {
+  ABNORMAL_WICK: "ABNORMAL WICK",
+  NORMAL_MOVE: "MARKET MOVE",
+  NOT_REACHED: "NOT REACHED",
+  NOT_ENOUGH_DATA: "NO VERDICT",
+};
+
+function explain(c) {
+  const ex = NAMES[c.exchange] || c.exchange;
+  const dir = c.side === "LONG" ? "down to" : "up to";
+  switch (c.result) {
+    case "ABNORMAL_WICK":
+      return `Only <b>${ex}</b> went ${dir} ${fmt(c.liquidation_price)}. No other exchange reached it, and ${ex} was <b>${c.gap_percent}%</b> past the closest one. This is evidence of an exchange-specific wick.`;
+    case "NORMAL_MOVE":
+      return `Other exchanges also went ${dir} ${fmt(c.liquidation_price)} in the same window. This was a real market move, not a ${ex}-only wick.`;
+    case "NOT_REACHED":
+      return `${ex} never went ${dir} ${fmt(c.liquidation_price)} in that window (last price or mark price). Check the time or the price you entered.`;
+    default:
+      return `Not enough exchanges list this coin for that minute (need ${ex} plus at least 2 others). No verdict was made.`;
+  }
+}
+
+function tapeSVG(c) {
+  const rows = EXCHANGES.filter((e) => c.prices && c.prices[e]);
+  if (!rows.length) return "";
+  const vals = rows.flatMap((e) => [c.prices[e].high, c.prices[e].low]);
+  vals.push(c.liquidation_price);
+  if (c.mark_price) vals.push(c.mark_price.high, c.mark_price.low);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  const pad = (hi - lo) * 0.12 || hi * 0.001;
+  lo -= pad; hi += pad;
+  const W = 900, L = 110, R = 20, rowH = 40, top = 26, H = top + rows.length * rowH + 30;
+  const x = (v) => L + ((v - lo) / (hi - lo)) * (W - L - R);
+  let s = `<svg class="tape" viewBox="0 0 ${W} ${H}" role="img" aria-label="Price range per exchange compared with the liquidation price">`;
+  // axis ticks
+  for (let i = 0; i <= 4; i++) {
+    const v = lo + ((hi - lo) * i) / 4, xx = x(v);
+    s += `<line x1="${xx}" y1="${top - 8}" x2="${xx}" y2="${H - 24}" stroke="#cfc6b3" stroke-dasharray="2 4"/>`;
+    s += `<text x="${xx}" y="${H - 8}" font-size="11" text-anchor="middle" fill="#5d574c" font-family="IBM Plex Mono">${fmt(v.toPrecision(6))}</text>`;
+  }
+  rows.forEach((e, i) => {
+    const y = top + i * rowH + rowH / 2, p = c.prices[e], mine = e === c.exchange;
+    const col = mine ? (c.result === "ABNORMAL_WICK" ? "#c2321b" : "#1c1a16") : "#5d574c";
+    s += `<text x="0" y="${y + 4}" font-size="13" font-weight="${mine ? 700 : 400}" fill="${col}" font-family="IBM Plex Mono">${NAMES[e]}${mine ? " ◂" : ""}</text>`;
+    s += `<line x1="${L}" y1="${y}" x2="${W - R}" y2="${y}" stroke="#e8e1d2"/>`;
+    s += `<line x1="${x(p.low)}" y1="${y}" x2="${x(p.high)}" y2="${y}" stroke="${col}" stroke-width="${mine ? 4 : 2.5}" stroke-linecap="round"/>`;
+    s += `<rect x="${x(p.low) - 3}" y="${y - 7}" width="6" height="14" fill="${col}"/>`;
+    s += `<rect x="${x(p.high) - 3}" y="${y - 7}" width="6" height="14" fill="${col}"/>`;
+    if (mine && c.mark_price) {
+      s += `<line x1="${x(c.mark_price.low)}" y1="${y + 11}" x2="${x(c.mark_price.high)}" y2="${y + 11}" stroke="#2b4f7a" stroke-width="2" stroke-dasharray="4 3"/>`;
+      s += `<text x="${x(c.mark_price.high) + 6}" y="${y + 15}" font-size="10" fill="#2b4f7a" font-family="IBM Plex Mono">mark</text>`;
+    }
+  });
+  const lx = x(c.liquidation_price);
+  s += `<line x1="${lx}" y1="${top - 14}" x2="${lx}" y2="${H - 24}" stroke="#c2321b" stroke-width="2" stroke-dasharray="6 4"/>`;
+  s += `<text x="${lx}" y="${top - 16}" font-size="11" text-anchor="middle" fill="#c2321b" font-weight="700" font-family="IBM Plex Mono">LIQ ${fmt(c.liquidation_price)}</text>`;
+  return s + "</svg>";
+}
+
+function caseHTML(c) {
+  const when = c.time_utc ? c.time_utc.replace("T", " ").replace(":00Z", " UTC") : "sample prices";
+  const mark = c.mark_price_reached === true ? "reached" : c.mark_price_reached === false ? "not reached" : "n/a";
+  return `
+  <article class="case">
+    <div class="case-head">
+      <div>
+        <h3>Case #${esc(c.id)}${c.mode === "DEMO" ? '<span class="demo-ribbon">DEMO</span>' : ""}</h3>
+        <div class="sub">${esc(NAMES[c.exchange] || c.exchange)} · ${esc(c.coin)} · ${esc(c.side)}</div>
+      </div>
+      <div class="sub">${esc(when)}</div>
+    </div>
+    <div class="stamp ${esc(c.result)}">${LABEL[c.result] || esc(c.result)}</div>
+    <dl class="facts">
+      <div><dt>Liquidation</dt><dd>${fmt(c.liquidation_price)}</dd></div>
+      <div><dt>Gap vs others</dt><dd>${esc(c.gap_percent)}%</dd></div>
+      <div><dt>Mark price</dt><dd>${mark}</dd></div>
+      <div><dt>Sources</dt><dd>${Object.keys(c.prices || {}).length}</dd></div>
+      ${c.reporter ? `<div><dt>Filed by</dt><dd><a href="https://explorer-studio.genlayer.com/address/${esc(c.reporter)}" target="_blank" rel="noopener">${esc(c.reporter.slice(0, 6))}…${esc(c.reporter.slice(-4))}</a></dd></div>` : ""}
+    </dl>
+    <div class="tape-wrap">${tapeSVG(c)}</div>
+    <p class="verdict-text">${explain(c)}</p>
+  </article>`;
+}
+
+// ---------- archive ----------
+function renderArchive(list) {
+  $("archiveCards").innerHTML = list.map((c) => `
+    <button class="card" type="button" data-id="${esc(c.id)}">
+      <small>Case #${esc(c.id)} · ${esc(c.mode)}</small>
+      <div>${esc(NAMES[c.exchange] || c.exchange)} · ${esc(c.coin)} · ${esc(c.side)} @ ${fmt(c.liquidation_price)}</div>
+      <div class="r ${esc(c.result)}">${LABEL[c.result] || esc(c.result)}</div>
+    </button>`).join("");
+  $("archiveCards").querySelectorAll(".card").forEach((b) =>
+    b.addEventListener("click", () => openCase(Number(b.dataset.id))));
+}
+renderArchive(ARCHIVE);
+$("archiveCase").innerHTML = caseHTML(ARCHIVE[1]);
+
+// ---------- GenLayer client ----------
+let client = null, account = null, GL = null, CHAINS = null, TX_STATUS = null;
+let walletClient = null, walletAddr = null;
+
+async function loadLib() {
+  if (GL) return;
+  GL = await import("https://esm.sh/genlayer-js");
+  CHAINS = await import("https://esm.sh/genlayer-js/chains");
+  const types = await import("https://esm.sh/genlayer-js/types");
+  TX_STATUS = types.TransactionStatus;
+}
+
+// Read client + instant in-browser account (Studio needs no real funds).
+async function getClient() {
+  if (client) return client;
+  await loadLib();
+  account = GL.createAccount();
+  client = GL.createClient({ chain: CHAINS.studionet, endpoint: RPC, account });
+  client.__status = TX_STATUS;
+  return client;
+}
+
+// Optional: the trader's own wallet (MetaMask or any injected wallet).
+async function connectWallet() {
+  if (!window.ethereum) {
+    alertBox("No browser wallet found. Install MetaMask, or keep using the instant account.");
+    return;
+  }
+  try {
+    await loadLib();
+    const accs = await window.ethereum.request({ method: "eth_requestAccounts" });
+    walletAddr = accs[0];
+    walletClient = GL.createClient({ chain: CHAINS.studionet, endpoint: RPC, account: walletAddr, provider: window.ethereum });
+    walletClient.__status = TX_STATUS;
+    if (typeof walletClient.connect === "function") {
+      try { await walletClient.connect("studionet"); } catch (e) { /* network may already be added */ }
+    }
+    $("walletBtn").textContent = walletAddr.slice(0, 6) + "…" + walletAddr.slice(-4);
+    $("walletBtn").classList.add("on");
+    $("who").textContent = "Filing as " + walletAddr.slice(0, 6) + "…" + walletAddr.slice(-4) + ". Click the address above to switch back to the instant account.";
+  } catch (e) {
+    walletClient = null; walletAddr = null;
+    alertBox("Wallet not connected: " + (e.shortMessage || e.message || e) + ". You can still use the instant account.");
+  }
+}
+function disconnectWallet() {
+  walletClient = null; walletAddr = null;
+  $("walletBtn").textContent = "Connect wallet";
+  $("walletBtn").classList.remove("on");
+  $("who").textContent = "Sending with an instant in-browser account (no wallet needed). Connect a wallet to file under your own address.";
+}
+$("walletBtn").addEventListener("click", () => (walletClient ? disconnectWallet() : connectWallet()));
+
+function alertBox(msg) {
+  $("warn").textContent = msg;
+  $("warn").classList.add("show");
+}
+
+async function readView(fn, args = []) {
+  const c = await getClient();
+  return c.readContract({ address: CONTRACT, functionName: fn, args, stateStatus: "accepted" });
+}
+
+async function openCase(id) {
+  const local = ARCHIVE.find((c) => c.id === id);
+  try {
+    const raw = await readView("get_case", [id]);
+    const c = JSON.parse(raw);
+    if (c.error) throw new Error(c.error);
+    $("archiveCase").innerHTML = caseHTML(c);
+  } catch (e) {
+    $("archiveCase").innerHTML = local ? caseHTML(local) : `<p class="log show"><span class="err">Case #${esc(id)} could not be read: ${esc(e.message || e)}</span></p>`;
+  }
+  $("archiveCase").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+$("lookupBtn").addEventListener("click", () => {
+  const v = $("lookupId").value;
+  if (v !== "") openCase(Number(v));
+});
+
+async function loadIndex() {
+  try {
+    const idx = JSON.parse(await readView("get_wick_index"));
+    $("idxBody").innerHTML = Object.keys(idx).map((ex) => {
+      const s = idx[ex];
+      const rate = s.cases ? Math.round((s.ABNORMAL_WICK * 100) / s.cases) + "%" : "—";
+      const tally = "▮".repeat(Math.min(s.ABNORMAL_WICK, 20)) || "·";
+      return `<tr><td>${esc(NAMES[ex] || ex)}</td><td>${s.cases}</td><td class="tally" title="${s.ABNORMAL_WICK}">${tally}</td><td>${s.NORMAL_MOVE}</td><td>${s.NOT_REACHED}</td><td>${rate}</td></tr>`;
+    }).join("");
+    const total = await readView("get_total_cases");
+    $("totalCases").textContent = String(total);
+    $("netState").textContent = "live";
+  } catch (e) {
+    $("idxBody").innerHTML = `<tr><td colspan="6">Could not reach GenLayer Studio right now. The archive above shows recorded results.</td></tr>`;
+    $("netState").textContent = "offline";
+  }
+}
+loadIndex();
+
+// ---------- form ----------
+let side = "LONG";
+$("sideSeg").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+  side = b.dataset.v;
+  $("sideSeg").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+}));
+
+// default time: 10 minutes ago, local
+(function () {
+  const d = new Date(Date.now() - 10 * 60000);
+  d.setSeconds(0, 0);
+  const off = d.getTimezoneOffset() * 60000;
+  $("when").value = new Date(d - off).toISOString().slice(0, 16);
+})();
+
+function log(msg, isErr) {
+  const el = $("log");
+  el.classList.add("show");
+  el.innerHTML += `<div${isErr ? ' class="err"' : ""}>${esc(msg)}</div>`;
+}
+
+// ---------- price sanity check (browser-side, before spending a transaction) ----------
+// Looks up the coin's real price for that minute on Binance's public market-data API.
+// If the typed liquidation price is far away, ask the user to confirm once.
+let confirmedKey = "";
+async function marketPriceAt(coin, ms) {
+  const base = coin.replace(/USDT?M?$/, "");
+  for (const sym of [base, "1000" + base]) {
+    try {
+      const r = await fetch(`https://data-api.binance.vision/api/v3/klines?symbol=${sym}USDT&interval=1m&limit=1&startTime=${ms}`);
+      const d = await r.json();
+      if (Array.isArray(d) && d.length) return Number(d[0][4]) / (sym === base ? 1 : 1000);
+    } catch (e) { /* ignore and try next */ }
+  }
+  return null;
+}
+
+$("caseForm").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  $("warn").classList.remove("show");
+  const local = new Date($("when").value);
+  if (isNaN(local)) return;
+  if (local.getTime() > Date.now() - 3 * 60000) {
+    $("log").innerHTML = ""; log("Pick a time at least 3 minutes in the past, so the candles are closed.", true);
+    return;
+  }
+  const utc = local.toISOString().slice(0, 16).replace("T", " ");
+  const args = [$("ex").value, $("coin").value.trim().toUpperCase(), utc, side, String($("price").value)];
+  const key = args.join("|");
+
+  if (key !== confirmedKey) {
+    const ms = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate(), local.getUTCHours(), local.getUTCMinutes());
+    const mkt = await marketPriceAt(args[1], ms);
+    if (mkt) {
+      const diff = Math.abs(Number(args[4]) - mkt) / mkt * 100;
+      if (diff > 15) {
+        confirmedKey = key;
+        alertBox(`Check your price: ${args[1]} was about ${fmt(mkt.toPrecision(6))} USDT at that minute, but you entered ${fmt(args[4])} (${diff.toFixed(1)}% away). If this is correct, press "Send to validators" again.`);
+        return;
+      }
+    }
+  }
+  confirmedKey = "";
+
+  $("go").disabled = true; $("log").innerHTML = ""; $("liveCase").innerHTML = "";
+  try {
+    log(`Filing: ${args[0]} ${args[1]} ${side} @ ${args[4]} — ${utc} UTC`);
+    await getClient();
+    const c = walletClient || client;
+    if (walletClient) log("Please confirm the transaction in your wallet…");
+    const hash = await c.writeContract({ address: CONTRACT, functionName: "check_liquidation", args, value: 0n });
+    log("Sent. Validators are reading the exchanges… tx " + String(hash).slice(0, 12) + "…");
+    await c.waitForTransactionReceipt({ hash, status: c.__status.FINALIZED, retries: 100, interval: 4000 });
+    log("Finalized. Reading the verdict from contract storage…");
+    const total = Number(await readView("get_total_cases"));
+    // find our case (newest first)
+    for (let id = total - 1; id >= Math.max(0, total - 5); id--) {
+      const cs = JSON.parse(await readView("get_case", [id]));
+      if (cs.mode === "LIVE" && cs.exchange === args[0] && cs.coin === args[1].replace(/USDT?M?$/, "") && cs.side === side) {
+        $("liveCase").innerHTML = caseHTML(cs);
+        break;
+      }
+    }
+    loadIndex();
+  } catch (e) {
+    log("Failed: " + (e.shortMessage || e.message || e), true);
+  } finally {
+    $("go").disabled = false;
+  }
+});
+</script>
+</body>
+</html>
